@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>if(location.protocol==="file:")document.addEventListener("DOMContentLoaded",function(){document.body.innerHTML="<div style=\"max-width:560px;margin:60px auto;padding:24px;font:17px/1.6 system-ui,Segoe UI,sans-serif;border:2px solid #c98a00;border-radius:14px;background:#fff8e6;color:#1d2130\"><h2 style=\"margin-top:0\">Сервис открыт неправильно</h2><p>Эта страница открыта как файл с диска, поэтому вход, регистрация и розыгрыши не работают.</p><ol><li>Закройте эту вкладку.</li><li>В папке сервиса дважды щёлкните файл <b>«Запустить сервис.bat»</b>.</li><li>Откроется чёрное окно (не закрывайте его) и браузер с адресом <b>http://localhost:3000</b>.</li></ol><p>Если сервис уже запущен, просто перейдите по адресу <a href=\"http://localhost:3000\">http://localhost:3000</a>.</p></div>"})</script>
+  <title>Администрирование — ЧестныйРозыгрыш</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="wrap" style="max-width:1200px">
+  <header class="top"><a class="logo" href="/">Честный<span>Розыгрыш</span></a><div id="nav"></div></header>
+  <div class="tabs" style="max-width:520px">
+    <button type="button" class="tab active" data-tab="people">Пользователи и платежи</button>
+    <button type="button" class="tab" data-tab="settings">⚙ Настройки</button>
+  </div>
+  <section id="tab-settings" class="hidden">
+    <div id="setStatus" class="card small"></div>
+    <div id="setGroups"></div>
+  </section>
+  <section id="tab-people">
+  <div class="stats" id="totals"></div>
+  <div class="card">
+    <h2>Пользователи</h2>
+    <input type="text" id="q" placeholder="Поиск по e-mail" style="margin-bottom:12px">
+    <div class="tablewrap"><table id="users"></table></div>
+  </div>
+  <div class="card">
+    <h2>Платежи</h2>
+    <div class="tablewrap"><table id="payments"></table></div>
+  </div>
+  </section>
+</div>
+<script src="/nav.js"></script>
+<script>
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const rub = (v) => Number(v).toLocaleString('ru-RU') + ' ₽';
+  const STATUS = { pending: '<span class="badge">ожидает</span>', succeeded: '<span class="badge ok">оплачен</span>', canceled: '<span class="badge bad">отменён</span>' };
+  let users = [];
+
+  ME.then((me) => {
+    if (!me.user) return location.replace('/login.html?next=/admin.html');
+    if (!me.user.isAdmin) { document.body.innerHTML = '<div class="wrap"><div class="card bad" style="margin-top:40px">Нет доступа. Попросите администратора добавить ваш e-mail в настройках или впишите его в ADMIN_EMAILS в файле .env.</div></div>'; return; }
+    load();
+    loadSettings();
+  });
+
+  // ── Настройки ─────────────────────────────────────────────────────────
+  document.querySelectorAll('[data-tab]').forEach((t) => (t.onclick = () => {
+    document.querySelectorAll('[data-tab]').forEach((x) => x.classList.toggle('active', x === t));
+    $('#tab-people').classList.toggle('hidden', t.dataset.tab !== 'people');
+    $('#tab-settings').classList.toggle('hidden', t.dataset.tab !== 'settings');
+    try { localStorage.setItem('adminTab', t.dataset.tab); } catch {}
+  }));
+  try { if (localStorage.getItem('adminTab') === 'settings') document.querySelector('[data-tab=settings]').click(); } catch {}
+
+  const GROUPS = [
+    ['site', 'Сайт и доступ', null, 'Кто администратор, адрес сайта и параметры безопасности.'],
+    ['vk', 'ВКонтакте', 'vk', 'Ключ нужен для розыгрышей по реальным постам VK.'],
+    ['ig', 'Instagram', 'ig', 'Официальный API работает только с постами вашего Business/Creator-аккаунта.'],
+    ['pay', 'Оплата — ЮKassa', 'yookassa', ''],
+    ['mail', 'Почта (восстановление пароля)', 'mail', 'Через этот ящик сервис отправляет письма пользователям.'],
+    ['plans', 'Тарифы', null, 'Цены и сроки доступа, которые видят пользователи в личном кабинете. Уже оплаченные периоды не меняются.'],
+  ];
+  const SOURCE = { db: '<span class="badge ok">задано в админке</span>', env: '<span class="badge">из файла .env</span>', none: '<span class="badge bad">не задано</span>' };
+  let FIELDS = [];
+
+  // onlyGroup — перерисовать только этот блок, чтобы не потерять несохранённые правки в соседних
+  async function loadSettings(onlyGroup) {
+    const r = await api('/api/admin/settings');
+    FIELDS = r.fields;
+    if (onlyGroup) {
+      const old = document.querySelector(`.setgroup[data-group="${onlyGroup}"]`);
+      const tmp = document.createElement('div');
+      tmp.innerHTML = groupHtml(GROUPS.find((g) => g[0] === onlyGroup));
+      old.replaceWith(tmp.firstElementChild);
+      bindGroup(document.querySelector(`.setgroup[data-group="${onlyGroup}"]`));
+      return;
+    }
+    const st = r.status;
+    $('#setStatus').innerHTML = `Изменения применяются сразу, перезапуск не нужен.
+      Оплата: <b>${st.yookassa ? '<span class="ok">ЮKassa</span>' : st.testMode ? '<span class="bad">тестовый режим (деньги не списываются)</span>' : '<span class="bad">недоступна</span>'}</b> ·
+      Почта: <b>${st.mail ? '<span class="ok">настроена</span>' : '<span class="bad">не настроена</span>'}</b> ·
+      Порт: ${st.port} (меняется только в файле .env)`;
+    // Пока Instagram скрыт, его настройки в админке не показываем
+    $('#setGroups').innerHTML = GROUPS.filter((g) => g[0] !== 'ig' || st.instagramEnabled).map(groupHtml).join('');
+    document.querySelectorAll('.setgroup').forEach(bindGroup);
+  }
+
+  function groupHtml([g, title, test, hint]) {
+    const site = (FIELDS.find((f) => f.key === 'PUBLIC_URL').value || location.origin) + '/api/yookassa/webhook';
+    return `<form class="card setgroup" data-group="${g}">
+      <h2>${title}</h2>${hint ? `<p class="small muted">${hint}</p>` : ''}
+      ${g === 'pay' ? `<p class="small muted">В личном кабинете ЮKassa → Интеграция → HTTP-уведомления укажите адрес <b class="mono">${esc(site)}</b> и события payment.succeeded, payment.canceled.</p>` : ''}
+      ${FIELDS.filter((f) => f.group === g).map(fieldHtml).join('')}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn primary" type="submit">Сохранить</button>
+        ${test ? `<button class="btn" type="button" data-test="${test}">${test === 'mail' ? '✉ Отправить тестовое письмо себе' : '🔌 Проверить подключение'}</button>` : ''}
+        <span class="small msg"></span>
+      </div></form>`;
+  }
+
+  function fieldHtml(f) {
+    const meta = `<span class="small">${SOURCE[f.source]}${f.updatedBy ? ` <span class="muted">· ${esc(f.updatedBy)}, ${fmtDate(f.updatedAt)}</span>` : ''}</span>`;
+    const hint = f.hint ? `<small class="muted" style="display:block;margin-top:4px">${esc(f.hint)}</small>` : '';
+    if (f.type === 'plans') return plansHtml(f.value);
+    if (f.type === 'bool') {
+      return `<label class="check"><input type="checkbox" name="${f.key}" ${f.value === '1' ? 'checked' : ''}><span>${esc(f.label)} ${meta}${hint}</span></label>`;
+    }
+    let input;
+    if (f.type === 'select') {
+      input = `<select name="${f.key}"><option value="">— по умолчанию —</option>${f.options.map(([v, l]) => `<option value="${v}" ${f.value === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+    } else if (f.secret) {
+      input = `<div style="display:flex;gap:8px"><input type="password" name="${f.key}" autocomplete="new-password" placeholder="${f.preview ? 'Задан (' + f.preview + '). Введите новый, чтобы заменить' : 'Не задан'}">
+        ${f.source === 'db' ? `<button class="btn" type="button" data-clear="${f.key}" title="Удалить значение из админки">Очистить</button>` : ''}</div>`;
+    } else {
+      input = `<input type="text" name="${f.key}" value="${esc(f.value)}">`;
+    }
+    const envNote = f.key === 'ADMIN_EMAILS' && f.envValue ? `<small class="muted" style="display:block">Всегда администраторы (из файла .env): ${esc(f.envValue)}</small>` : '';
+    return `<label class="f"><span>${esc(f.label)} ${meta}</span>${input}${hint}${envNote}</label>`;
+  }
+
+  function plansHtml(plans) {
+    return `<div class="tablewrap"><table class="plans-edit"><tr><th>Название</th><th>Дней</th><th>Цена, ₽</th><th>Подпись</th><th>Выделить</th><th></th></tr>
+      ${plans.map(planRow).join('')}</table></div>
+      <button class="btn" type="button" data-addplan style="margin:10px 0">+ Добавить тариф</button>`;
+  }
+  function planRow(p = {}) {
+    return `<tr data-id="${esc(p.id || '')}"><td><input type="text" data-k="title" value="${esc(p.title || '')}" placeholder="30 дней"></td>
+      <td><input type="number" data-k="days" value="${p.days || ''}" min="1" style="width:80px"></td>
+      <td><input type="number" data-k="price" value="${p.price ? Number(p.price) : ''}" min="1" step="0.01" style="width:110px"></td>
+      <td><input type="text" data-k="hint" value="${esc(p.hint || '')}" placeholder="Для регулярных розыгрышей"></td>
+      <td style="text-align:center"><input type="radio" name="popular" data-k="popular" ${p.popular ? 'checked' : ''}></td>
+      <td><button class="btn" type="button" data-delplan title="Удалить тариф">✕</button></td></tr>`;
+  }
+
+  function bindGroup(form) {
+    const msg = form.querySelector('.msg');
+    const say = (ok, text) => (msg.innerHTML = `<span class="${ok ? 'ok' : 'bad'}">${esc(text)}</span>`);
+    const bindPlans = () => form.querySelectorAll('[data-delplan]').forEach((b) => (b.onclick = () => b.closest('tr').remove()));
+    bindPlans();
+    const add = form.querySelector('[data-addplan]');
+    if (add) add.onclick = () => {
+      const table = form.querySelector('.plans-edit');
+      (table.tBodies[0] || table).insertAdjacentHTML('beforeend', planRow());
+      bindPlans();
+    };
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const values = {};
+      for (const f of FIELDS.filter((x) => x.group === form.dataset.group)) {
+        if (f.type === 'plans') {
+          values.PLANS = [...form.querySelectorAll('.plans-edit tr[data-id]')].map((tr) => {
+            const o = { id: tr.dataset.id };
+            tr.querySelectorAll('[data-k]').forEach((i) => (o[i.dataset.k] = i.type === 'radio' ? i.checked : i.value));
+            return o;
+          });
+          continue;
+        }
+        const el = form.elements[f.key];
+        if (f.type === 'bool') values[f.key] = el.checked;
+        else if (f.secret) { if (el.value.trim()) values[f.key] = el.value.trim(); } // пустое поле секрета — оставить как есть
+        else values[f.key] = el.value;
+      }
+      try {
+        await api('/api/admin/settings', { values });
+        await loadSettings(form.dataset.group);
+        document.querySelector(`.setgroup[data-group="${form.dataset.group}"] .msg`).innerHTML = '<span class="ok">✓ Сохранено</span>';
+      } catch (x) { say(false, x.message); }
+    };
+    form.querySelectorAll('[data-clear]').forEach((b) => (b.onclick = async () => {
+      if (!confirm('Удалить это значение? Если оно есть в файле .env, будет использоваться оттуда.')) return;
+      try { await api('/api/admin/settings', { values: { [b.dataset.clear]: '' } }); await loadSettings(form.dataset.group); } catch (x) { say(false, x.message); }
+    }));
+    const t = form.querySelector('[data-test]');
+    if (t) t.onclick = async () => {
+      msg.innerHTML = '<span class="muted">Проверяю сохранённые настройки…</span>';
+      t.disabled = true;
+      try { say(true, '✓ ' + (await api('/api/admin/test', { what: t.dataset.test })).message); } catch (x) { say(false, '✗ ' + x.message); }
+      t.disabled = false;
+    };
+  }
+
+  async function load() {
+    users = await api('/api/admin/users');
+    const payments = await api('/api/admin/payments');
+    const now = new Date().toISOString();
+    const real = payments.filter((p) => p.status === 'succeeded' && p.provider === 'yookassa');
+    $('#totals').innerHTML = `
+      <div class="stat"><span class="small muted">Пользователей</span><b>${users.length}</b></div>
+      <div class="stat"><span class="small muted">С активным доступом</span><b class="ok">${users.filter((u) => u.paid_until && u.paid_until > now).length}</b></div>
+      <div class="stat"><span class="small muted">Получено через ЮKassa</span><b>${rub(real.reduce((s, p) => s + Number(p.amount), 0))}</b></div>`;
+    drawUsers();
+    $('#payments').innerHTML = '<tr><th>Дата</th><th>Пользователь</th><th>Тариф</th><th>Сумма</th><th>Способ</th><th>Статус</th><th>Период</th><th>Примечание</th></tr>' +
+      payments.map((p) => `<tr><td>${fmtDate(p.createdAt)}</td><td>${esc(p.email)}</td><td>${esc(p.plan)}</td><td>${rub(p.amount)}</td><td>${p.provider}</td><td>${STATUS[p.status]}</td>
+        <td class="small">${p.periodFrom ? fmtDate(p.periodFrom) + ' — ' + fmtDate(p.periodTo) : '—'}</td><td class="small">${esc(p.note || '')}</td></tr>`).join('');
+  }
+
+  function drawUsers() {
+    const q = $('#q').value.trim().toLowerCase();
+    const now = new Date().toISOString();
+    $('#users').innerHTML = '<tr><th>E-mail</th><th>Регистрация</th><th>Оплачено до</th><th>Всего оплачено</th><th>Розыгрышей</th><th>Изменить срок</th></tr>' +
+      users.filter((u) => !q || u.email.includes(q)).map((u) => `<tr>
+        <td>${esc(u.email)}</td><td>${fmtDate(u.created_at)}</td>
+        <td>${u.paid_until ? `<span class="${u.paid_until > now ? 'ok' : 'bad'}">${fmtDate(u.paid_until)}</span>` : '—'}</td>
+        <td>${rub(u.paid_total)}</td><td>${u.draws}</td>
+        <td><form class="grant" data-id="${u.id}" style="display:flex;gap:6px">
+          <input type="number" name="days" placeholder="± дней" style="width:90px" required>
+          <input type="text" name="note" placeholder="Причина" style="width:150px">
+          <button class="btn" type="submit">OK</button></form></td></tr>`).join('');
+    document.querySelectorAll('.grant').forEach((f) => (f.onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        await api('/api/admin/grant', { userId: f.dataset.id, days: f.days.value, note: f.note.value });
+        load();
+      } catch (x) { alert(x.message); }
+    }));
+  }
+  $('#q').oninput = drawUsers;
+</script>
+</body>
+</html>

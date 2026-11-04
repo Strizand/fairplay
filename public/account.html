@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>if(location.protocol==="file:")document.addEventListener("DOMContentLoaded",function(){document.body.innerHTML="<div style=\"max-width:560px;margin:60px auto;padding:24px;font:17px/1.6 system-ui,Segoe UI,sans-serif;border:2px solid #c98a00;border-radius:14px;background:#fff8e6;color:#1d2130\"><h2 style=\"margin-top:0\">Сервис открыт неправильно</h2><p>Эта страница открыта как файл с диска, поэтому вход, регистрация и розыгрыши не работают.</p><ol><li>Закройте эту вкладку.</li><li>В папке сервиса дважды щёлкните файл <b>«Запустить сервис.bat»</b>.</li><li>Откроется чёрное окно (не закрывайте его) и браузер с адресом <b>http://localhost:3000</b>.</li></ol><p>Если сервис уже запущен, просто перейдите по адресу <a href=\"http://localhost:3000\">http://localhost:3000</a>.</p></div>"})</script>
+  <title>Личный кабинет — ЧестныйРозыгрыш</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top"><a class="logo" href="/">Честный<span>Розыгрыш</span></a><div id="nav"></div></header>
+
+  <div id="payMsg" class="card hidden"></div>
+
+  <div class="card">
+    <h2>Доступ к сервису</h2>
+    <div class="access" id="access"><div class="spinner"></div></div>
+  </div>
+
+  <div class="card">
+    <h2>Тарифы</h2>
+    <p class="small muted">Оплаченный доступ — неограниченное число розыгрышей по реальным постам ВКонтакте. Демо-режим бесплатен всегда. Если доступ ещё действует, новый период прибавляется к его концу.</p>
+    <div class="note hidden" id="testNote">Платёжная система ЮKassa не подключена — работает <b>тестовая оплата</b>: деньги не списываются. Для приёма реальных платежей задайте YOOKASSA_SHOP_ID и YOOKASSA_SECRET_KEY.</div>
+    <div class="plans" id="plans"></div>
+    <div id="buyErr" class="bad small" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card">
+    <h2>История оплат</h2>
+    <div class="tablewrap"><table id="payments"><tr><td class="muted">Загрузка…</td></tr></table></div>
+  </div>
+
+  <div class="card history">
+    <h2>Мои розыгрыши</h2>
+    <div id="draws" class="small muted">Пока нет</div>
+  </div>
+
+  <div class="cols">
+    <div class="card">
+      <h2>Смена пароля</h2>
+      <form id="pw">
+        <label class="f"><span>Текущий пароль</span><input type="password" name="old" required autocomplete="current-password"></label>
+        <label class="f"><span>Новый пароль (от 8 символов)</span><input type="password" name="new" required minlength="8" autocomplete="new-password"></label>
+        <div id="pwMsg" class="small"></div>
+        <button class="btn" type="submit">Сменить пароль</button>
+      </form>
+      <p class="small muted">После смены пароля все остальные устройства будут разлогинены.</p>
+    </div>
+    <div class="card">
+      <h2>Выход</h2>
+      <p class="small muted">Зарегистрирован: <span id="since"></span></p>
+      <button class="btn" id="logout" type="button">Выйти из аккаунта</button>
+    </div>
+  </div>
+</div>
+<script src="/nav.js"></script>
+<script>
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const STATUS = { pending: '<span class="badge">ожидает оплаты</span>', succeeded: '<span class="badge ok">оплачен</span>', canceled: '<span class="badge bad">отменён</span>' };
+  const rub = (v) => Number(v).toLocaleString('ru-RU') + ' ₽';
+
+  ME.then(async (me) => {
+    if (!me.user) return location.replace('/login.html?next=/account.html');
+    $('#since').textContent = fmtDate(me.user.createdAt);
+    renderAccess(me.access);
+    const { plans, testMode } = await api('/api/plans');
+    $('#testNote').classList.toggle('hidden', !testMode);
+    $('#plans').innerHTML = plans.map((p) => `<div class="plan ${p.popular ? 'popular' : ''}">${p.popular ? '<span class="tag">популярный</span>' : ''}
+      <b>${esc(p.title)}</b><div class="price">${rub(p.price)}</div><div class="small muted">${esc(p.hint)}</div>
+      <button class="btn ${p.popular ? 'primary' : ''}" data-plan="${p.id}" type="button">${me.access.active ? 'Продлить' : 'Оплатить'}</button></div>`).join('');
+    document.querySelectorAll('[data-plan]').forEach((b) => (b.onclick = () => buy(b)));
+    loadPayments();
+    loadDraws();
+    const pid = new URLSearchParams(location.search).get('payment');
+    if (pid) watchPayment(pid);
+  });
+
+  function renderAccess(a) {
+    $('#access').innerHTML = a.active
+      ? `<div><div class="big ok">Доступ активен</div><div>оплачено до <b>${fmtDate(a.paidUntil)}</b> · осталось <b>${a.daysLeft} дн.</b></div></div>
+         <a class="btn primary" href="/">🎲 Провести розыгрыш</a>`
+      : `<div><div class="big bad">Доступ не оплачен</div><div class="muted">${a.paidUntil ? 'Срок закончился ' + fmtDate(a.paidUntil) + '. ' : ''}Демо-розыгрыши доступны бесплатно. Выберите тариф ниже.</div></div>`;
+  }
+
+  async function buy(btn) {
+    $('#buyErr').textContent = '';
+    btn.disabled = true;
+    try {
+      const r = await api('/api/payments', { planId: btn.dataset.plan });
+      location.href = r.confirmationUrl; // страница оплаты ЮKassa (или тестовая)
+    } catch (e) {
+      $('#buyErr').textContent = e.message;
+      btn.disabled = false;
+    }
+  }
+
+  async function loadPayments() {
+    const list = await api('/api/payments');
+    $('#payments').innerHTML = list.length
+      ? '<tr><th>Дата</th><th>Тариф</th><th>Сумма</th><th>Статус</th><th>Оплаченный период</th></tr>' +
+        list.map((p) => `<tr><td>${fmtDate(p.createdAt)}</td><td>${esc(p.plan)}${p.provider === 'test' ? ' <span class="badge demo">тест</span>' : ''}${p.provider === 'manual' ? ' <span class="badge">начислено</span>' : ''}</td>
+          <td>${rub(p.amount)}</td><td>${STATUS[p.status]}</td><td class="small">${p.periodFrom ? fmtDate(p.periodFrom) + ' — ' + fmtDate(p.periodTo) : '—'}</td></tr>`).join('')
+      : '<tr><td class="muted">Оплат пока не было</td></tr>';
+  }
+
+  async function loadDraws() {
+    const list = await api('/api/reports');
+    if (!list.length) return;
+    $('#draws').classList.remove('muted');
+    $('#draws').innerHTML = list.map((x) => `<a href="/r/${x.id}"><span>${x.network === 'vk' ? 'VK' : 'IG'} · ${esc(x.title)} ${x.demo ? '<span class="badge demo">демо</span>' : ''}<br><span class="small muted">${fmtDate(x.createdAt)} · участников: ${x.total}</span></span><span class="small">${esc(x.winners.join(', ') || '—')}</span></a>`).join('');
+  }
+
+  // После возврата со страницы оплаты: ждём подтверждения от платёжной системы
+  async function watchPayment(id) {
+    const box = $('#payMsg');
+    box.classList.remove('hidden');
+    for (let i = 0; i < 40; i++) {
+      let p;
+      try { p = await api('/api/payments/' + id); } catch (e) { box.innerHTML = `<span class="bad">${esc(e.message)}</span>`; return; }
+      if (p.status === 'succeeded') {
+        box.innerHTML = `<b class="ok">✓ Оплата прошла.</b> Доступ продлён до ${fmtDate(p.periodTo)}.`;
+        renderAccess((await api('/api/me')).access);
+        loadPayments();
+        history.replaceState(null, '', '/account.html');
+        return;
+      }
+      if (p.status === 'canceled') { box.innerHTML = `<b class="bad">Платёж отменён.</b> ${esc(p.note || '')} Деньги не списаны.`; loadPayments(); return; }
+      box.innerHTML = '<div class="spinner"></div><div style="text-align:center">Ждём подтверждения оплаты…</div>';
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+    box.innerHTML = 'Подтверждение ещё не пришло. Если деньги списаны, доступ продлится автоматически в течение нескольких минут — обновите страницу.';
+  }
+
+  $('#pw').onsubmit = async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    try {
+      await api('/api/auth/password', { oldPassword: f.old.value, newPassword: f.new.value });
+      $('#pwMsg').innerHTML = '<span class="ok">Пароль изменён</span>';
+      f.reset();
+    } catch (x) { $('#pwMsg').innerHTML = `<span class="bad">${esc(x.message)}</span>`; }
+  };
+  $('#logout').onclick = async () => { await api('/api/auth/logout', {}); location.href = '/'; };
+</script>
+</body>
+</html>

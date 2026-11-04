@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>if(location.protocol==="file:")document.addEventListener("DOMContentLoaded",function(){document.body.innerHTML="<div style=\"max-width:560px;margin:60px auto;padding:24px;font:17px/1.6 system-ui,Segoe UI,sans-serif;border:2px solid #c98a00;border-radius:14px;background:#fff8e6;color:#1d2130\"><h2 style=\"margin-top:0\">Сервис открыт неправильно</h2><p>Эта страница открыта как файл с диска, поэтому вход, регистрация и розыгрыши не работают.</p><ol><li>Закройте эту вкладку.</li><li>В папке сервиса дважды щёлкните файл <b>«Запустить сервис.bat»</b>.</li><li>Откроется чёрное окно (не закрывайте его) и браузер с адресом <b>http://localhost:3000</b>.</li></ol><p>Если сервис уже запущен, просто перейдите по адресу <a href=\"http://localhost:3000\">http://localhost:3000</a>.</p></div>"})</script>
+  <title>Вход — ЧестныйРозыгрыш</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="wrap" style="max-width:460px">
+  <header class="top"><a class="logo" href="/">Честный<span>Розыгрыш</span></a></header>
+  <div class="card">
+    <div class="tabs">
+      <button type="button" class="tab active" data-mode="login">Вход</button>
+      <button type="button" class="tab" data-mode="register">Регистрация</button>
+    </div>
+    <form id="f">
+      <label class="f"><span>E-mail</span><input type="email" name="email" required autocomplete="email"></label>
+      <label class="f"><span>Пароль</span><input type="password" name="password" required minlength="8" autocomplete="current-password"></label>
+      <label class="f hidden" id="repeatWrap"><span>Повторите пароль</span><input type="password" name="repeat" autocomplete="new-password"></label>
+      <p class="small muted hidden" id="regNote">Пароль — не короче 8 символов. Демо-розыгрыши бесплатны; для розыгрышей по реальным постам нужен оплаченный доступ.</p>
+      <div id="err" class="bad small"></div>
+      <button class="btn primary big" style="width:100%;justify-content:center" type="submit" id="submit">Войти</button>
+    </form>
+    <p class="small" id="forgotLink" style="text-align:center;margin-bottom:0"><a href="/forgot.html">Забыли пароль?</a></p>
+  </div>
+</div>
+<script src="/nav.js"></script>
+<script>
+  const f = document.getElementById('f');
+  let mode = new URLSearchParams(location.search).get('mode') === 'register' ? 'register' : 'login';
+  const next = new URLSearchParams(location.search).get('next');
+  // Только путь на этом же сайте: «/…», но не «//evil.com» и не «/\evil.com» (браузер считает их чужим доменом)
+  const safeNext = next && /^\/(?![\/\\])[^\\\s]*$/.test(next) ? next : '/account.html';
+  function setMode(m) {
+    mode = m;
+    document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.mode === m));
+    document.getElementById('repeatWrap').classList.toggle('hidden', m !== 'register');
+    document.getElementById('regNote').classList.toggle('hidden', m !== 'register');
+    document.getElementById('forgotLink').classList.toggle('hidden', m === 'register');
+    document.getElementById('submit').textContent = m === 'register' ? 'Зарегистрироваться' : 'Войти';
+    f.password.autocomplete = m === 'register' ? 'new-password' : 'current-password';
+    document.getElementById('err').textContent = '';
+  }
+  document.querySelectorAll('.tab').forEach((t) => (t.onclick = () => setMode(t.dataset.mode)));
+  setMode(mode);
+  ME.then((me) => { if (me.user) location.replace(safeNext); });
+  f.onsubmit = async (e) => {
+    e.preventDefault();
+    const err = document.getElementById('err');
+    err.textContent = '';
+    if (mode === 'register' && f.password.value !== f.repeat.value) { err.textContent = 'Пароли не совпадают'; return; }
+    try {
+      await api('/api/auth/' + mode, { email: f.email.value, password: f.password.value });
+      location.replace(safeNext);
+    } catch (x) { err.textContent = x.message; }
+  };
+</script>
+</body>
+</html>

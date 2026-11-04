@@ -1,0 +1,9 @@
+{
+  "name": "chestny-rozygrysh",
+  "version": "1.0.0",
+  "description": "Сервис проведения розыгрышей «подарок за репост» во ВКонтакте и Instagram с проверяемым отчётом",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=22.13" },
+  "license": "MIT"
+}

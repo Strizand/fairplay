@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>if(location.protocol==="file:")document.addEventListener("DOMContentLoaded",function(){document.body.innerHTML="<div style=\"max-width:560px;margin:60px auto;padding:24px;font:17px/1.6 system-ui,Segoe UI,sans-serif;border:2px solid #c98a00;border-radius:14px;background:#fff8e6;color:#1d2130\"><h2 style=\"margin-top:0\">Сервис открыт неправильно</h2><p>Эта страница открыта как файл с диска, поэтому вход, регистрация и розыгрыши не работают.</p><ol><li>Закройте эту вкладку.</li><li>В папке сервиса дважды щёлкните файл <b>«Запустить сервис.bat»</b>.</li><li>Откроется чёрное окно (не закрывайте его) и браузер с адресом <b>http://localhost:3000</b>.</li></ol><p>Если сервис уже запущен, просто перейдите по адресу <a href=\"http://localhost:3000\">http://localhost:3000</a>.</p></div>"})</script>
+  <title>Честный розыгрыш — ВКонтакте</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="logo" href="/">Честный<span>Розыгрыш</span></a>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+      <div id="nav"></div>
+    </div>
+  </header>
+
+  <section id="home">
+    <h1>Проведите розыгрыш «подарок за репост» честно и прозрачно</h1>
+    <p class="muted">Вставьте ссылку на пост, отметьте условия — сервис проверит каждого участника, выберет победителей проверяемым генератором случайных чисел и сформирует публичный отчёт.</p>
+    <div class="networks">
+      <button class="net vk" data-net="vk" type="button"><div class="ico">VK</div><b>ВКонтакте</b><span class="muted">Подписка, лайк, репост, комментарий, отметки друзей, фильтры профилей</span></button>
+      <button class="net ig hidden" data-net="instagram" type="button"><div class="ico">IG</div><b>Instagram</b><span class="muted">Комментарии, отметки друзей, ключевые слова, лайки и подписка по спискам</span></button>
+    </div>
+    <div class="features">
+      <div>🎲 <b>Проверяемая случайность</b><br>Число берётся из публичного маяка drand, раунд которого выходит уже после фиксации списка участников. <a href="/drand.html">Что это такое?</a></div>
+      <div>✅ <b>Проверка каждого</b><br>По каждому выпавшему номеру — какие условия выполнены, а какие нет, с автоматическим перевыбором</div>
+      <div>📄 <b>Публичный отчёт</b><br>Ссылка, печать в PDF, выгрузка CSV/JSON и самопроверка расчёта прямо в браузере</div>
+    </div>
+    <div class="trust-promo">
+      <div class="big-ico">🔁</div>
+      <div>
+        <h2>Перезапустить розыгрыш незаметно — нельзя</h2>
+        <p>Главная уловка нечестных розыгрышей — провести их несколько раз и показать подписчикам «удобный» результат.
+        У нас каждый отчёт показывает, <b>сколько всего розыгрышей проводилось по этому посту</b>, со ссылками на все —
+        в том числе на сделанные позже.</p>
+        <p class="small muted">Список обновляется при каждом открытии отчёта, и удалить из него ничего нельзя. Поэтому подписчик по одной ссылке видит: розыгрыш был единственным — или их было несколько.</p>
+        <div class="demo-row"><span class="ok">✓ Это единственный розыгрыш по этому посту</span><span class="bad">⚠ По этому посту проведено 3 розыгрыша — этот № 2</span></div>
+      </div>
+    </div>
+  </section>
+
+  <form id="form" class="hidden" autocomplete="off">
+    <div class="card">
+      <h2 id="formTitle">Розыгрыш</h2>
+      <label class="f"><span>Ссылка на пост с розыгрышем</span><input type="url" name="url" required placeholder="https://vk.com/wall-123456_789"></label>
+      <div class="row">
+        <label class="f"><span>Название розыгрыша (для отчёта)</span><input type="text" name="title" placeholder="Новогодний розыгрыш"></label>
+        <label class="f"><span>Приз</span><input type="text" name="prize" placeholder="Сертификат на 5000 ₽"></label>
+      </div>
+      <label class="check"><input type="checkbox" name="demo"><span><b>Демо-режим</b><small>Без обращения к API: сервис сгенерирует правдоподобных участников для этой ссылки. Отчёт будет помечен как демонстрационный.</small></span></label>
+      <div class="note hidden" id="accessNote"></div>
+      <div class="note hidden" id="noToken">Розыгрыши по реальным постам этой соцсети пока недоступны — розыгрыш пройдёт в демо-режиме.</div>
+    </div>
+
+    <div class="card">
+      <h2>Механика</h2>
+      <div class="mechs">
+        <label class="mech"><input type="radio" name="mechanic" value="random" checked><b>Случайный выбор</b>Генератор выбирает номер участника</label>
+        <label class="mech"><input type="radio" name="mechanic" value="commentNumber"><b>По номеру комментария</b>Например, 50-й и 100-й</label>
+        <label class="mech"><input type="radio" name="mechanic" value="guessNumber"><b>Угадай число</b>Побеждает самый близкий ответ</label>
+        <label class="mech"><input type="radio" name="mechanic" value="firstN"><b>Первые N</b>Первые выполнившие условия</label>
+      </div>
+      <div class="m-random" style="margin-top:14px">
+        <div class="row">
+          <label class="f"><span>Порядок проверки</span>
+            <select name="checkMode">
+              <option value="drawThenCheck">Выбрать номер → проверить условия → при невыполнении перевыбрать (классика, видно в отчёте)</option>
+              <option value="filterThenDraw">Сначала отсеять невыполнивших, затем выбирать среди подходящих</option>
+            </select></label>
+          <label class="f"><span>Шансы участника</span>
+            <select name="tickets">
+              <option value="user">1 участник = 1 шанс</option>
+              <option value="comment">Каждый подходящий комментарий = дополнительный шанс</option>
+            </select></label>
+        </div>
+      </div>
+      <label class="f m-commentNumber hidden" style="margin-top:14px"><span>Номера комментариев через запятую. Если автор не выполнил условия — побеждает следующий комментарий</span><input type="text" name="commentNumbers" placeholder="50, 100, 150"></label>
+      <div class="row m-guessNumber hidden" style="margin-top:14px">
+        <label class="f"><span>Загадываемое число: от</span><input type="number" name="guessMin" value="1"></label>
+        <label class="f"><span>до</span><input type="number" name="guessMax" value="100"></label>
+      </div>
+      <p class="small muted m-guessNumber hidden">Участники пишут число в комментарии. Генератор загадывает число; побеждает ближайший ответ, при равенстве — более ранний комментарий.</p>
+      <div class="row" style="margin-top:6px">
+        <label class="f"><span>Победителей</span><input type="number" name="winners" value="1" min="1" max="100"></label>
+        <label class="f"><span>Резервных победителей (если победитель не выйдет на связь)</span><input type="number" name="reserves" value="1" min="0" max="50"></label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Условия розыгрыша</h2>
+      <div class="presets" id="presets"></div>
+      <div class="cols">
+        <div>
+          <h3>Действия участника</h3>
+          <label class="check"><input type="checkbox" name="cond.subscribe"><span>Подписка на сообщество / аккаунт</span></label>
+          <div class="sub only-vk"><textarea name="cond.groups" placeholder="Ссылки на сообщества через запятую или с новой строки: организатор и спонсоры"></textarea></div>
+          <div class="sub only-ig"><textarea name="followersList" placeholder="Список подписчиков (никнеймы через пробел/запятую/с новой строки). Instagram API не отдаёт подписчиков — загрузите выгрузку."></textarea><input type="file" accept=".txt,.csv" data-target="followersList" class="small"></div>
+          <label class="check"><input type="checkbox" name="cond.like"><span>Лайк поста</span></label>
+          <div class="sub only-ig"><textarea name="likersList" placeholder="Список лайкнувших (никнеймы). Instagram API отдаёт только количество лайков."></textarea><input type="file" accept=".txt,.csv" data-target="likersList" class="small"></div>
+          <label class="check only-vk"><input type="checkbox" name="cond.repost"><span>Репост записи<small>Проверяется, что репост существует на момент розыгрыша</small></span></label>
+          <label class="check"><input type="checkbox" name="cond.comment"><span>Комментарий под постом</span></label>
+          <label class="check sub"><input type="checkbox" name="cond.countReplies" checked><span>Засчитывать ответы в ветках комментариев</span></label>
+
+          <h3>Требования к комментарию</h3>
+          <label class="f"><span>Ключевое слово / фраза (несколько — через запятую, достаточно любого)</span><input type="text" name="cond.keyword" placeholder="участвую"></label>
+          <div class="row3">
+            <label class="f"><span>Отметить друзей, не менее</span><input type="number" name="cond.mentions" min="0" value="0"></label>
+            <label class="f"><span>Мин. длина текста</span><input type="number" name="cond.minLength" min="0" value="0"></label>
+            <label class="f"><span>Мин. комментариев</span><input type="number" name="cond.minComments" min="0" value="0"></label>
+          </div>
+          <label class="f"><span>Приём комментариев до (дедлайн)</span><input type="datetime-local" name="cond.deadline"></label>
+        </div>
+        <div>
+          <h3 class="only-vk">Фильтры профилей</h3>
+          <label class="check only-vk"><input type="checkbox" name="cond.excludeDeactivated" checked><span>Исключить удалённые и заблокированные страницы</span></label>
+          <label class="check only-vk"><input type="checkbox" name="cond.excludeClosed"><span>Исключить закрытые профили<small>Закрытый профиль не позволяет проверить репост на стене</small></span></label>
+          <label class="check only-vk"><input type="checkbox" name="cond.excludeNoPhoto"><span>Исключить профили без фото<small>Простой фильтр «ботов» и фейков</small></span></label>
+          <div class="row3 only-vk">
+            <label class="f"><span>Пол</span><select name="cond.sex"><option value="">Любой</option><option value="f">Женский</option><option value="m">Мужской</option></select></label>
+            <label class="f"><span>Возраст от</span><input type="number" name="cond.minAge" min="0" value="0"></label>
+            <label class="f"><span>Город</span><input type="text" name="cond.city" placeholder="Москва"></label>
+          </div>
+
+          <h3>Исключения</h3>
+          <label class="check"><input type="checkbox" name="cond.excludeOrganizer" checked><span>Исключить организатора (автора поста)</span></label>
+          <label class="f"><span>Чёрный список (ссылки или никнеймы: сотрудники, известные боты, «вечные» победители)</span><textarea name="cond.blacklist"></textarea></label>
+          <label class="f"><span>Исключить победителей розыгрышей сервиса за последние N дней (0 — не исключать)</span><input type="number" name="cond.excludePrevWinnersDays" min="0" value="0"></label>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <label class="f"><span>Комментарий организатора для отчёта (необязательно)</span><textarea name="organizerNote" placeholder="Например: розыгрыш проводится в прямом эфире 31.12 в 19:00"></textarea></label>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn primary big" type="submit">🎲 Провести розыгрыш</button>
+        <button class="btn" type="button" id="back">← Сменить соцсеть</button>
+      </div>
+    </div>
+  </form>
+
+  <section id="drawStage" class="card stage hidden">
+    <div class="noprint" style="text-align:right"><button class="btn" id="fullscreen" type="button">⛶ Режим трансляции</button></div>
+    <h2 id="stageTitle">Розыгрыш</h2>
+    <div id="loading"><div class="spinner"></div><div class="progress" id="progress"></div></div>
+    <div id="anim" class="hidden">
+      <div class="drum" id="drum"></div>
+      <div class="verdict" id="verdict"></div>
+      <div style="margin:10px 0"><button class="btn" id="skip" type="button">Пропустить анимацию »</button></div>
+      <div class="winners" id="stageWinners"></div>
+      <div id="stageDone" class="hidden" style="margin-top:20px">
+        <a class="btn primary big" id="reportLink" href="#">📄 Открыть отчёт</a>
+        <button class="btn big" type="button" onclick="location.reload()">Новый розыгрыш</button>
+      </div>
+    </div>
+    <div id="stageError" class="bad hidden"></div>
+  </section>
+
+  <section class="card history" id="history"><h2>Недавние розыгрыши</h2><div id="historyList" class="muted small">Пока нет</div></section>
+</div>
+
+<script src="/nav.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

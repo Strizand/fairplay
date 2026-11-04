@@ -1,0 +1,6 @@
+node_modules/
+data/
+.env
+# временные файлы Word/Excel и локальные настройки
+~$*
+.claude/

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>if(location.protocol==="file:")document.addEventListener("DOMContentLoaded",function(){document.body.innerHTML="<div style=\"max-width:560px;margin:60px auto;padding:24px;font:17px/1.6 system-ui,Segoe UI,sans-serif;border:2px solid #c98a00;border-radius:14px;background:#fff8e6;color:#1d2130\"><h2 style=\"margin-top:0\">Сервис открыт неправильно</h2><p>Эта страница открыта как файл с диска, поэтому вход, регистрация и розыгрыши не работают.</p><ol><li>Закройте эту вкладку.</li><li>В папке сервиса дважды щёлкните файл <b>«Запустить сервис.bat»</b>.</li><li>Откроется чёрное окно (не закрывайте его) и браузер с адресом <b>http://localhost:3000</b>.</li></ol><p>Если сервис уже запущен, просто перейдите по адресу <a href=\"http://localhost:3000\">http://localhost:3000</a>.</p></div>"})</script>
+  <title>Отчёт о розыгрыше</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top noprint">
+    <a class="logo" href="/">Честный<span>Розыгрыш</span></a>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" id="copy" type="button">🔗 Ссылка</button>
+      <button class="btn" type="button" onclick="print()">🖨 PDF / печать</button>
+      <button class="btn" id="csv" type="button">CSV</button>
+      <button class="btn" id="json" type="button">JSON</button>
+      <div id="nav"></div>
+    </div>
+  </header>
+  <main id="root"><div class="spinner"></div></main>
+</div>
+<script src="/nav.js"></script>
+<script src="/report.js"></script>
+</body>
+</html>

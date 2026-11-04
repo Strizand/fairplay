@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>if(location.protocol==="file:")document.addEventListener("DOMContentLoaded",function(){document.body.innerHTML="<div style=\"max-width:560px;margin:60px auto;padding:24px;font:17px/1.6 system-ui,Segoe UI,sans-serif;border:2px solid #c98a00;border-radius:14px;background:#fff8e6;color:#1d2130\"><h2 style=\"margin-top:0\">Сервис открыт неправильно</h2><p>Эта страница открыта как файл с диска, поэтому вход, регистрация и розыгрыши не работают.</p><ol><li>Закройте эту вкладку.</li><li>В папке сервиса дважды щёлкните файл <b>«Запустить сервис.bat»</b>.</li><li>Откроется чёрное окно (не закрывайте его) и браузер с адресом <b>http://localhost:3000</b>.</li></ol><p>Если сервис уже запущен, просто перейдите по адресу <a href=\"http://localhost:3000\">http://localhost:3000</a>.</p></div>"})</script>
+  <meta name="referrer" content="no-referrer">
+  <title>Новый пароль — ЧестныйРозыгрыш</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="wrap" style="max-width:460px">
+  <header class="top"><a class="logo" href="/">Честный<span>Розыгрыш</span></a></header>
+  <div class="card">
+    <h2>Новый пароль</h2>
+    <div id="state"><div class="spinner"></div></div>
+    <form id="f" class="hidden">
+      <p class="small muted">Аккаунт: <b id="email"></b></p>
+      <label class="f"><span>Новый пароль (от 8 символов)</span><input type="password" name="password" required minlength="8" autocomplete="new-password"></label>
+      <label class="f"><span>Повторите пароль</span><input type="password" name="repeat" required autocomplete="new-password"></label>
+      <div id="err" class="bad small"></div>
+      <button class="btn primary big" style="width:100%;justify-content:center" type="submit">Сохранить и войти</button>
+      <p class="small muted">После смены пароля все остальные устройства будут разлогинены.</p>
+    </form>
+  </div>
+</div>
+<script src="/nav.js"></script>
+<script>
+  const token = new URLSearchParams(location.search).get('token') || '';
+  history.replaceState(null, '', '/reset.html'); // убираем токен из адресной строки и истории
+  const f = document.getElementById('f');
+  const state = document.getElementById('state');
+  fetch('/api/auth/reset?token=' + encodeURIComponent(token)).then((r) => r.json()).then((r) => {
+    if (r.error) throw new Error(r.error);
+    document.getElementById('email').textContent = r.email;
+    state.classList.add('hidden');
+    f.classList.remove('hidden');
+  }).catch((e) => {
+    state.innerHTML = `<p class="bad">${e.message.replace(/</g, '&lt;')}</p><a class="btn" href="/forgot.html">Запросить новую ссылку</a>`;
+  });
+  f.onsubmit = async (e) => {
+    e.preventDefault();
+    const err = document.getElementById('err');
+    err.textContent = '';
+    if (f.password.value !== f.repeat.value) { err.textContent = 'Пароли не совпадают'; return; }
+    try {
+      await api('/api/auth/reset', { token, password: f.password.value });
+      location.replace('/account.html');
+    } catch (x) { err.textContent = x.message; }
+  };
+</script>
+</body>
+</html>
