@@ -1,0 +1,5 @@
+# Скрипты и конфиги для Linux-сервера должны храниться с переводами строк LF,
+# иначе bash и systemd на сервере их не прочитают (даже если код правили на Windows)
+*.sh text eol=lf
+deploy/* text eol=lf
+*.bat text eol=crlf

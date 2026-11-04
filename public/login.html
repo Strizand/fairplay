@@ -20,6 +20,10 @@
       <label class="f"><span>Пароль</span><input type="password" name="password" required minlength="8" autocomplete="current-password"></label>
       <label class="f hidden" id="repeatWrap"><span>Повторите пароль</span><input type="password" name="repeat" autocomplete="new-password"></label>
       <p class="small muted hidden" id="regNote">Пароль — не короче 8 символов. Демо-розыгрыши бесплатны; для розыгрышей по реальным постам нужен оплаченный доступ.</p>
+      <div class="hidden consent" id="consentWrap">
+        <label class="check"><input type="checkbox" name="acceptOffer"><span>Я принимаю условия <a href="/offer.html" target="_blank">публичной оферты</a> и ознакомлен с <a href="/privacy.html" target="_blank">Политикой обработки персональных данных</a></span></label>
+        <label class="check"><input type="checkbox" name="consentPd"><span>Я даю <a href="/consent.html" target="_blank">согласие на обработку персональных данных</a></span></label>
+      </div>
       <div id="err" class="bad small"></div>
       <button class="btn primary big" style="width:100%;justify-content:center" type="submit" id="submit">Войти</button>
     </form>
@@ -38,6 +42,7 @@
     document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.mode === m));
     document.getElementById('repeatWrap').classList.toggle('hidden', m !== 'register');
     document.getElementById('regNote').classList.toggle('hidden', m !== 'register');
+    document.getElementById('consentWrap').classList.toggle('hidden', m !== 'register');
     document.getElementById('forgotLink').classList.toggle('hidden', m === 'register');
     document.getElementById('submit').textContent = m === 'register' ? 'Зарегистрироваться' : 'Войти';
     f.password.autocomplete = m === 'register' ? 'new-password' : 'current-password';
@@ -51,8 +56,11 @@
     const err = document.getElementById('err');
     err.textContent = '';
     if (mode === 'register' && f.password.value !== f.repeat.value) { err.textContent = 'Пароли не совпадают'; return; }
+    if (mode === 'register' && (!f.acceptOffer.checked || !f.consentPd.checked)) { err.textContent = 'Отметьте обе галочки: оферту и согласие на обработку персональных данных'; return; }
+    const body = { email: f.email.value, password: f.password.value };
+    if (mode === 'register') Object.assign(body, { acceptOffer: f.acceptOffer.checked, consentPd: f.consentPd.checked });
     try {
-      await api('/api/auth/' + mode, { email: f.email.value, password: f.password.value });
+      await api('/api/auth/' + mode, body);
       location.replace(safeNext);
     } catch (x) { err.textContent = x.message; }
   };

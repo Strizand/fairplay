@@ -1,0 +1,19 @@
+# Конфигурация веб-сервера Caddy: HTTPS-сертификат Let's Encrypt получается и продлевается автоматически.
+# install.sh записывает этот файл в /etc/caddy/Caddyfile, подставив ваш домен вместо example.ru.
+# После ручной правки:  sudo systemctl reload caddy
+
+example.ru {
+	encode gzip
+	reverse_proxy 127.0.0.1:3000
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+# Адрес с www перенаправляется на основной
+www.example.ru {
+	redir https://example.ru{uri} permanent
+}

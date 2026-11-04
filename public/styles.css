@@ -41,6 +41,19 @@ h3 { font-size: 15px; margin: 16px 0 8px; color: var(--muted); text-transform: u
 .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 28px; }
 .features div { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; font-size: 14px; }
 
+/* Подвал и юридические страницы */
+.site-footer { display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: center; margin: 32px 0 12px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 13px; }
+.site-footer a { color: var(--muted); }
+.doc { line-height: 1.6; }
+.doc h1 { font-size: 26px; }
+.doc h2 { font-size: 18px; margin-top: 26px; }
+.doc ol, .doc ul { padding-left: 22px; }
+.doc li { margin: 4px 0; }
+.doc table { margin: 8px 0; }
+.missing { background: color-mix(in srgb, var(--warn) 22%, transparent); border-radius: 4px; padding: 0 4px; color: var(--text); }
+.consent { font-size: 13px; }
+.consent a { white-space: nowrap; }
+
 /* Прозрачность перезапусков: блок на главной и в отчёте */
 .trust-promo { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: start; margin: -12px 0 28px; padding: 20px 22px; border-radius: var(--radius); border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--card)); }
 .trust-promo .big-ico { font-size: 40px; line-height: 1; }

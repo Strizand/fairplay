@@ -1,0 +1,33 @@
+# Служба systemd: запускает ЧестныйРозыгрыш при старте сервера и перезапускает при сбое.
+# Устанавливается скриптом deploy/install.sh в /etc/systemd/system/fairplay.service.
+# Управление:  sudo systemctl status|restart|stop fairplay   Журнал:  sudo journalctl -u fairplay -f
+
+[Unit]
+Description=ChestnyRozygrysh (fairplay) giveaway service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=fairplay
+Group=fairplay
+WorkingDirectory=/home/fairplay/app
+ExecStart=/usr/bin/node server.js
+Environment=NODE_ENV=production
+# Слушать только локальный адрес: снаружи сервис доступен лишь через Caddy (HTTPS)
+Environment=HOST=127.0.0.1
+Restart=always
+RestartSec=3
+
+# Ограничения безопасности: процесс может писать только в папку data/
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/home/fairplay/app/data
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

@@ -30,8 +30,11 @@ const billing = require('./lib/billing');
 const { db } = require('./lib/db');
 const mailer = require('./lib/mailer');
 const settings = require('./lib/settings');
+const legal = require('./lib/legal');
 
 const PORT = Number(process.env.PORT) || 3000;
+// На сервере за Caddy/nginx — 127.0.0.1, чтобы порт не был доступен снаружи напрямую. Пусто — все адреса.
+const HOST = process.env.HOST || undefined;
 // Instagram временно скрыт: для работы с аккаунтами клиентов нужен вход через Instagram (OAuth).
 // Код сохранён; включить обратно — INSTAGRAM_ENABLED=1 в файле .env и перезапуск.
 const INSTAGRAM_ENABLED = process.env.INSTAGRAM_ENABLED === '1';
@@ -267,7 +270,9 @@ async function api(req, res, url) {
   if (p === '/api/me') return send(res, 200, me(user));
   if (p === '/api/auth/register' && method === 'POST') {
     const b = await readBody(req);
-    const s = auth.register(b.email, b.password, clientIp(req));
+    // Отдельные согласия: с офертой и на обработку персональных данных (152-ФЗ — согласие отдельным документом)
+    if (b.acceptOffer !== true || b.consentPd !== true) throw new Error('Чтобы зарегистрироваться, примите оферту и дайте согласие на обработку персональных данных');
+    const s = auth.register(b.email, b.password, clientIp(req), legal.LEGAL_VERSION);
     return send(res, 200, { ok: true }, { 'Set-Cookie': auth.cookieHeader(s.token, s.expires) });
   }
   if (p === '/api/auth/login' && method === 'POST') {
@@ -311,6 +316,8 @@ async function api(req, res, url) {
   }
 
   // ── Оплата ──
+  // Реквизиты продавца и редакция документов — для страниц оферты, политики и контактов
+  if (p === '/api/legal') return send(res, 200, legal.info());
   if (p === '/api/plans') return send(res, 200, { plans: settings.plans(), yookassa: billing.yookassaEnabled(), testMode: billing.testModeEnabled() });
   if (p === '/api/payments' && method === 'GET') {
     if (!needUser()) return;
@@ -493,7 +500,7 @@ async function housekeeping() {
 housekeeping();
 setInterval(housekeeping, 3600000).unref();
 
-server.listen(PORT, () => {
+server.listen(PORT, HOST, () => {
   console.log(`Сервис розыгрышей запущен: http://localhost:${PORT}`);
   if (billing.yookassaEnabled()) console.log('Оплата: ЮKassa');
   else if (billing.testModeEnabled()) console.log('Оплата: ТЕСТОВЫЙ режим (ЮKassa не настроена, деньги не списываются)');

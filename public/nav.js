@@ -8,6 +8,17 @@ window.api = async (url, body) => {
   return j;
 };
 
+// Подвал со ссылками на документы и контакты — на всех страницах, где подключён nav.js
+document.addEventListener('DOMContentLoaded', () => {
+  if (document.querySelector('.site-footer')) return;
+  const f = document.createElement('footer');
+  f.className = 'site-footer noprint';
+  f.innerHTML = `<a href="/offer.html">Публичная оферта</a><a href="/privacy.html">Политика обработки персональных данных</a>
+    <a href="/consent.html">Согласие на обработку персональных данных</a><a href="/contacts.html">Контакты и реквизиты</a>
+    <span class="muted">© ${new Date().getFullYear()} ЧестныйРозыгрыш</span>`;
+  (document.querySelector('.wrap') || document.body).appendChild(f);
+});
+
 window.fmtDate = (s) => (s ? new Date(s).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—');
 
 ME.then((me) => {
