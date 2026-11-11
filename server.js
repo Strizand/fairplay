@@ -31,6 +31,7 @@ const { db } = require('./lib/db');
 const mailer = require('./lib/mailer');
 const settings = require('./lib/settings');
 const legal = require('./lib/legal');
+const vkid = require('./lib/vkid');
 
 const PORT = Number(process.env.PORT) || 3000;
 // На сервере за Caddy/nginx — 127.0.0.1, чтобы порт не был доступен снаружи напрямую. Пусто — все адреса.
@@ -156,9 +157,12 @@ async function testConnection(what, user) {
   if (what === 'vk') {
     const token = settings.get('VK_TOKEN');
     if (!token) throw new Error('Ключ VK не задан');
-    const r = await fetch('https://api.vk.com/method/users.get', { method: 'POST', body: new URLSearchParams({ user_ids: '1', access_token: token, v: '5.199' }), signal: AbortSignal.timeout(ms) }).then((x) => x.json());
-    if (r.error) throw new Error('VK отклонил ключ: ' + r.error.error_msg);
-    return 'VK: ключ работает';
+    // Проверяем все методы, нужные розыгрышу: ключ может работать для users.get, но не для лайков и комментариев
+    const r = await vkid.checkMethods(token);
+    if (r.allOk) return 'VK: ключ работает, все нужные методы доступны';
+    const bad = r.rows.filter((x) => !x.ok);
+    if (bad.length === r.rows.length) throw new Error('VK отклонил ключ: ' + bad[0].error);
+    throw new Error('Ключ принят, но недоступны: ' + bad.map((x) => `${x.label} — ${x.method}: ${x.error}`).join('; '));
   }
   if (what === 'ig') {
     const token = settings.get('IG_TOKEN');
@@ -250,6 +254,37 @@ async function execute(job, s, user) {
   };
   store.save(report, user && user.id);
   return report.id;
+}
+
+const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+// Страница результата входа через VK ID: какие методы VK API доступны ключу пользователя
+async function vkidCallback(res, url, user) {
+  let body;
+  try {
+    if (!user || !user.isAdmin) throw new Error('Войдите в сервис как администратор и запустите проверку из админки');
+    const t = await vkid.finish(url.searchParams, user.id);
+    const r = await vkid.checkMethods(t.token, t.post);
+    const me = await vkid.call(t.token, 'users.get');
+    const who = me.ok && me.response[0] ? `${me.response[0].first_name} ${me.response[0].last_name} (id${me.response[0].id})` : 'id' + t.userId;
+    body = `<h2>${r.allOk ? '✅ Все нужные методы доступны' : '❌ Часть методов недоступна'}</h2>
+      <p class="small muted">Аккаунт ВКонтакте: <b>${escHtml(who)}</b> · права ключа: <span class="mono">${escHtml(t.scope || '—')}</span><br>
+      Проверочный пост: <a href="${escHtml(r.post)}" target="_blank" rel="noopener">${escHtml(r.post)}</a></p>
+      <div class="tablewrap"><table><tr><th>Что нужно сервису</th><th>Метод</th><th>Результат</th></tr>
+      ${r.rows.map((x) => `<tr><td>${escHtml(x.label)}</td><td class="mono">${escHtml(x.method)}</td><td>${x.ok ? '<span class="ok">✓ работает</span>' : `<span class="bad">✗ ${escHtml(x.error)}</span>`}</td></tr>`).join('')}
+      </table></div>
+      <p class="small">${r.allOk
+        ? 'С ключом пользователя VK ID розыгрыши работают — можно делать вход через ВК для всех пользователей.'
+        : 'Ключ пользователя VK ID тоже ограничен. Сохраните скриншот этой страницы — он пригодится для обращения в поддержку ВКонтакте.'}</p>
+      <p class="small muted">Ключ использован только для этой проверки и не сохранён.</p>`;
+  } catch (e) {
+    body = `<h2>❌ Проверка не удалась</h2><p class="bad">${escHtml(publicError(e).message)}</p>`;
+  }
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer' });
+  res.end(`<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Проверка VK ID — ЧестныйРозыгрыш</title><link rel="stylesheet" href="/styles.css"></head>
+    <body><div class="wrap" style="max-width:900px"><header class="top"><a class="logo" href="/">Честный<span>Розыгрыш</span></a></header>
+    <div class="card">${body}<p><a class="btn" href="/admin.html">← Вернуться в админку</a></p></div></div></body></html>`);
 }
 
 async function api(req, res, url) {
@@ -385,10 +420,20 @@ async function api(req, res, url) {
       settings.save(values, user.email);
       return send(res, 200, { ok: true });
     }
+    // Вход через VK ID и проверка методов VK API на ключе пользователя (ключ не сохраняется)
+    if (p === '/api/admin/vkid/start' && method === 'GET') {
+      const to = vkid.start(user.id, baseUrl(req), String(url.searchParams.get('post') || '').trim());
+      res.writeHead(302, { Location: to, 'Cache-Control': 'no-store' });
+      return res.end();
+    }
     if (p === '/api/admin/test' && method === 'POST') {
       const b = await readBody(req);
       return send(res, 200, { message: await testConnection(b.what, user) });
     }
+  }
+
+  if (p === '/api/vkid/callback' && method === 'GET') {
+    return vkidCallback(res, url, user);
   }
 
   // ── Розыгрыши ──

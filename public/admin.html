@@ -99,7 +99,21 @@
         <button class="btn primary" type="submit">Сохранить</button>
         ${test ? `<button class="btn" type="button" data-test="${test}">${test === 'mail' ? '✉ Отправить тестовое письмо себе' : '🔌 Проверить подключение'}</button>` : ''}
         <span class="small msg"></span>
-      </div></form>`;
+      </div>${g === 'vk' ? vkidHtml() : ''}</form>`;
+  }
+
+  // Проверка входа через VK ID: какие методы VK API доступны ключу пользователя
+  function vkidHtml() {
+    const back = (FIELDS.find((f) => f.key === 'PUBLIC_URL').value || location.origin) + '/api/vkid/callback';
+    return `<div style="margin-top:18px;padding-top:14px;border-top:1px solid #e3e6ef">
+      <h3 style="margin:0 0 6px">Проверка входа через VK ID</h3>
+      <p class="small muted">Вы войдёте своим аккаунтом ВКонтакте, и сервис проверит, доступны ли с ключом пользователя лайки, репосты и комментарии.
+        Ключ используется только для проверки и не сохраняется.<br>
+        В кабинете VK ID → ваше приложение: в «Доверенный Redirect URL» добавьте <b class="mono">${esc(back)}</b>,
+        в «Доступах» включите «Стена» и «Сообщества».</p>
+      <label class="f"><span>Пост для проверки (необязательно)</span><input type="text" id="vkidPost" placeholder="https://vk.com/wall-123_456 — пусто: свежий пост сообщества VK API"></label>
+      <button class="btn" type="button" id="vkidStart">🔑 Войти через ВК и проверить методы</button>
+    </div>`;
   }
 
   function fieldHtml(f) {
@@ -175,6 +189,12 @@
       if (!confirm('Удалить это значение? Если оно есть в файле .env, будет использоваться оттуда.')) return;
       try { await api('/api/admin/settings', { values: { [b.dataset.clear]: '' } }); await loadSettings(form.dataset.group); } catch (x) { say(false, x.message); }
     }));
+    const vb = form.querySelector('#vkidStart');
+    if (vb) vb.onclick = () => {
+      if (!FIELDS.find((f) => f.key === 'VK_APP_ID').value) return say(false, 'Сначала укажите и сохраните ID приложения VK ID');
+      const post = form.querySelector('#vkidPost').value.trim();
+      location.href = '/api/admin/vkid/start' + (post ? '?post=' + encodeURIComponent(post) : '');
+    };
     const t = form.querySelector('[data-test]');
     if (t) t.onclick = async () => {
       msg.innerHTML = '<span class="muted">Проверяю сохранённые настройки…</span>';
