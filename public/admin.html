@@ -104,13 +104,13 @@
 
   // Проверка входа через VK ID: какие методы VK API доступны ключу пользователя
   function vkidHtml() {
-    const back = (FIELDS.find((f) => f.key === 'PUBLIC_URL').value || location.origin) + '/api/vkid/callback';
+    const back = FIELDS.find((f) => f.key === 'PUBLIC_URL').value || location.origin;
     return `<div style="margin-top:18px;padding-top:14px;border-top:1px solid #e3e6ef">
       <h3 style="margin:0 0 6px">Проверка входа через VK ID</h3>
       <p class="small muted">Вы войдёте своим аккаунтом ВКонтакте, и сервис проверит, доступны ли с ключом пользователя лайки, репосты и комментарии.
         Ключ используется только для проверки и не сохраняется.<br>
-        В кабинете VK ID → ваше приложение → «Приложение» → «Подключение авторизации»: в «Доверенный Redirect URL» добавьте
-        <b class="mono">${esc(back)}</b>. Включать расширенные доступы не нужно.</p>
+        В кабинете VK ID → ваше приложение → «Приложение» → «Подключение авторизации» в «Доверенный Redirect URL» должен быть
+        адрес сайта <b class="mono">${esc(back)}</b> — точно так, без слеша в конце. Расширенные доступы не нужны.</p>
       <label class="f"><span>Пост для проверки (необязательно)</span><input type="text" id="vkidPost" placeholder="https://vk.com/wall-123_456 — пусто: свежий пост сообщества VK API"></label>
       <button class="btn" type="button" id="vkidStart">🔑 Войти через ВК и проверить методы</button>
     </div>`;

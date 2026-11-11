@@ -501,6 +501,10 @@ const server = http.createServer(async (req, res) => {
   try {
     if (url.pathname.startsWith('/api/')) return await api(req, res, url);
 
+    // Возврат с VK ID приходит на главную страницу (см. lib/vkid.js)
+    if (url.pathname === '/' && req.method === 'GET' && vkid.isReturn(url.searchParams)) {
+      return await vkidCallback(res, url, auth.currentUser(req));
+    }
     // Статика. /r/<id> — короткая публичная ссылка на отчёт
     let file = url.pathname === '/' ? '/index.html' : url.pathname;
     if (/^\/r\/[a-z0-9]+$/.test(file)) file = '/report.html';
